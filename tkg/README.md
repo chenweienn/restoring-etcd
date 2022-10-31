@@ -1,7 +1,7 @@
 # Restoring etcd in TKG
 
 
-A k8s cluster operator can use script to restore etcd from etcd snapshot backup. If there is no snapshot backup available, the script supports retrieving snapshot db files from each etcd node as candidates to restore.
+A k8s cluster operator can use this script to restore etcd from etcd snapshot backup. If there is no snapshot backup available, the script supports retrieving snapshot db files from each etcd node as candidates to restore.
 
 Each execution of the script generates
 
@@ -13,8 +13,8 @@ Each execution of the script generates
   - snapshot file;
   - scripts for restoring etcd data, stopping etcd, and restarting etcd (copied from jumphost) and the logs of executing them;
   - etcd pod manifest temporarily moved from kubelet static pod manifests directory (for stopping etcd pod);
-  - etcd datadir restored from snapshot;
-  - etcd datadir backup which is taken before swapping in the data restored from snapshot.
+  - etcd data dir restored from snapshot;
+  - etcd data dir backup which is taken before swapping in the data restored from snapshot.
 
 
 ## Procedure to restore etcd 
@@ -24,6 +24,7 @@ Each execution of the script generates
 - `detect_etcd_manifest_path.sh` (optinal, if you want `restore_etcd_tkg.sh` detect etcd pod manifest location)
 
 2. Find IPs of the etcd nodes (k8s control plane nodes).
+
 For example,
 ```
 $ kubectl get nodes -l node-role.kubernetes.io/control-plane -o jsonpath='{range .items[*]}{.status.addresses[?(@.type=="InternalIP")].address}{"\n"}{end}'
@@ -34,7 +35,8 @@ $ kubectl get nodes -l node-role.kubernetes.io/control-plane -o jsonpath='{range
 $ export ETCD_NODES="10.192.194.209 10.192.194.47 10.192.192.46"
 ```
 
-3. Determine etcd data dir from the etcd pod manifest.
+3. Determine etcd data dir from etcd pod manifest.
+
 Example etcd pod manifest:
 ```
 ...
@@ -60,9 +62,10 @@ spec:
   ...
 status: {}
 ```
-We see hostPath `/var/lib/etcd` is mounted with mountPath `/var/lib/etcd-container` for the etcd job to store data. We should restore etcd snapshot to `/var/lib/etcd` on each etcd node. Hence we specify `-d /var/lib/etcd` when executing the script.
+In this example, hostPath `/var/lib/etcd` is mounted at mountPath `/var/lib/etcd-container` for the etcd job in container to store data. The script should restore etcd snapshot to `/var/lib/etcd` on each etcd node. Hence we specify `-d /var/lib/etcd` when executing the script.
 
-4. Refer to help 
+4. Execute the script.
+
 
 ```
 $ ./restore_etcd_tkg.sh --help
@@ -100,20 +103,54 @@ Examples:
       ./restore_etcd_tkg.sh -d /etcddisk/etcd --skip-hash-check 
 ```
 
-### Demo 1:
+### Demo 1
 
 Restore a 3-node etcd cluster with a snapshot `snapshot-db` taken via `etcdctl snapshot save ...`.
 
+https://user-images.githubusercontent.com/30960774/198977842-fcc0b396-9a1b-4bf1-9dba-391676f4e916.mp4
 
-https://user-images.githubusercontent.com/30960774/198950519-1d5d5481-e96e-4fc5-8f73-419bd7a64ae4.mp4
-
-
-### Demo 2:
+### Demo 2
 
 Restore a 3-node etcd cluster with `--debug` flag. We retrieve snapshot db files from etcd nodes for restoring.
 
+https://user-images.githubusercontent.com/30960774/198977884-5bf93372-82b7-493b-8b05-8754dc517a24.mp4
 
-https://user-images.githubusercontent.com/30960774/198950544-3c42fba1-4e2c-48d2-9835-7eeaf41c3399.mp4
+Artifacts generated in Demo 2
+
+```
+## on jumphost
+
+ubuntu@jumphost:~$ ls -lh /tmp/restore-etcd-workdir.2022-10-31T09-33-18.ZU4c/
+total 58M
+-rw-r--r-- 1 kubo kubo  13M Oct 31 09:33 db-from-10.192.192.46
+-rw-r--r-- 1 kubo kubo  13M Oct 31 09:33 db-from-10.192.194.209
+-rw-r--r-- 1 kubo kubo  13M Oct 31 09:33 db-from-10.192.194.47
+-rw-r--r-- 1 kubo kubo 2.6K Oct 31 09:33 etcd-10.192.192.46.yaml
+-rw-r--r-- 1 kubo kubo 2.8K Oct 31 09:33 etcd-10.192.194.209.yaml
+-rw-r--r-- 1 kubo kubo 2.8K Oct 31 09:33 etcd-10.192.194.47.yaml
+-rwxr-xr-x 1 kubo kubo  22M Oct 31 09:33 etcdutl
+-rw-rw-r-- 1 kubo kubo  692 Oct 31 09:33 restart_etcd_restored.sh
+-rw-rw-r-- 1 kubo kubo  843 Oct 31 09:33 restore_etcd_data_10.192.192.46.sh
+-rw-rw-r-- 1 kubo kubo  844 Oct 31 09:33 restore_etcd_data_10.192.194.209.sh
+-rw-rw-r-- 1 kubo kubo  843 Oct 31 09:33 restore_etcd_data_10.192.194.47.sh
+-rw-rw-r-- 1 kubo kubo  508 Oct 31 09:33 stop_etcd.sh
+
+## on each etcd node
+
+capv@etcd-cluster-control-plane-k6l86:~$ ls -lh /home/capv/restore-etcd-workdir.2022-10-31T09-33-18.ZU4c/
+total 13M
+-rw-r--r-- 1 capv capv  13M Oct 31 09:33 db-from-10.192.192.46
+-rwxrwxr-x 1 capv capv 1.9K Oct 31 09:33 detect_etcd_manifest_path.sh
+drwxr-xr-x 3 root root 4.0K Oct 31 09:34 etcd-datadir-backup
+drwx------ 3 root root 4.0K Oct 31 09:34 etcd-datadir-restored
+-rw------- 1 root root 2.6K Oct 18 05:33 etcd.yaml
+-rw-rw-r-- 1 capv capv  605 Oct 31 09:34 restart_etcd_restored_10.192.192.46.log
+-rwxrwxr-x 1 capv capv  692 Oct 31 09:33 restart_etcd_restored.sh
+-rw-rw-r-- 1 capv capv 3.6K Oct 31 09:34 restore_etcd_data_10.192.192.46.log
+-rwxrwxr-x 1 capv capv  843 Oct 31 09:33 restore_etcd_data_10.192.192.46.sh
+-rw-rw-r-- 1 capv capv  372 Oct 31 09:34 stop_etcd_10.192.192.46.log
+-rwxrwxr-x 1 capv capv  508 Oct 31 09:33 stop_etcd.sh
+```
 
 
 
