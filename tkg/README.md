@@ -1,6 +1,68 @@
-# Recovering etcd in TKG
+# Restoring etcd in TKG
 
-## usage
+
+A k8s cluster operator can use script to restore etcd from etcd snapshot backup. If there is no snapshot backup available, the script supports retrieving snapshot db files from each etcd node as candidates to restore.
+
+Each execution of the script generates
+
+- a local work directory `/tmp/restore-etcd-workdir.timestamp.xyz` on the jumphost where this script is executed to store
+  - snapshot files, etcd manifests, etcdctl/etcdutl CLIs retrieved from etcd nodes;
+  - generated scripts for restoring etcd data, stopping etcd, and restarting etcd on each etcd node.
+
+- a remote work directory `/home/$SSH_USER/restore-etcd-workdir.timestamp.xyz` on each etcd node to store
+  - snapshot file;
+  - scripts for restoring etcd data, stopping etcd, and restarting etcd (copied from jumphost) and the logs of executing them;
+  - etcd pod manifest temporarily moved from kubelet static pod manifests directory (for stopping etcd pod);
+  - etcd datadir restored from snapshot;
+  - etcd datadir backup which is taken before swapping in the data restored from snapshot.
+
+
+## Procedure to restore etcd 
+
+1. Download the scripts on a jumphost where you can SSH to etcd nodes.
+- `restore_etcd_tkg.sh`
+- `detect_etcd_manifest_path.sh` (optinal, if you want `restore_etcd_tkg.sh` detect etcd pod manifest location)
+
+2. Find IPs of the etcd nodes (k8s control plane nodes).
+For example,
+```
+$ kubectl get nodes -l node-role.kubernetes.io/control-plane -o jsonpath='{range .items[*]}{.status.addresses[?(@.type=="InternalIP")].address}{"\n"}{end}'
+10.192.194.209
+10.192.194.47
+10.192.192.46
+
+$ export ETCD_NODES="10.192.194.209 10.192.194.47 10.192.192.46"
+```
+
+3. Determine etcd data dir from the etcd pod manifest.
+Example etcd pod manifest:
+```
+...
+spec:
+  containers:
+  - command:
+    - etcd
+    - --advertise-client-urls=https://10.192.194.2:2379
+    - --cert-file=/etc/kubernetes/pki/etcd/server.crt
+    - --cipher-suites=TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,....
+    - --client-cert-auth=true
+    - --data-dir=/var/lib/etcd-container
+    ...
+    volumeMounts:
+    - mountPath: /var/lib/etcd-container
+      name: etcd-data
+    ...
+  volumes:
+  - hostPath:
+      path: /var/lib/etcd
+      type: DirectoryOrCreate
+    name: etcd-data
+  ...
+status: {}
+```
+We see hostPath `/var/lib/etcd` is mounted with mountPath `/var/lib/etcd-container` for the etcd job to store data. We should restore etcd snapshot to `/var/lib/etcd` on each etcd node. Hence we specify `-d /var/lib/etcd` when executing the script.
+
+4. Refer to help 
 
 ```
 $ ./restore_etcd_tkg.sh --help
