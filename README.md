@@ -102,7 +102,7 @@ https://user-images.githubusercontent.com/30960774/198977842-fcc0b396-9a1b-4bf1-
 
 Restore a 3-node etcd cluster with `--debug` flag. We retrieve snapshot db files from etcd nodes for restoring.
 
-https://user-images.githubusercontent.com/30960774/198977884-5bf93372-82b7-493b-8b05-8754dc517a24.mp4
+https://user-images.githubusercontent.com/30960774/199413060-7361e1f1-5c90-4ee3-9d60-b315ae420b2b.mp4
 
 
 ## Artifacts generated from script execution
