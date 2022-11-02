@@ -120,7 +120,7 @@ Each execution of the script generates
   - etcd data dir restored from snapshot;
   - etcd data dir backup which is taken before swapping in the data restored from snapshot.
 
-### Artifacts generated in [Demo 2](https://github.com/chenweienn/restoring-etcd/edit/main/README.md#demo-2)
+### Artifacts generated in [Demo 2](https://github.com/chenweienn/restoring-etcd/blob/main/README.md#demo-2)
 
 ```
 ## on jumphost
